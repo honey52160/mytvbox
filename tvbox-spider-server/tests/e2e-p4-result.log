@@ -1,0 +1,88 @@
+== P4 多源搜索聚合端到端验证 ==
+已备份源池（2 个源）→ /Users/wangxue/Downloads/output/tvbox-spider-server/tests/sources.json.p4bak
+mock 多源已就绪：{"a": 19409, "b": 19410, "delay": 19411, "delay2": 19412, "slow": 19413, "flaky": 19414, "broken": 19415}
+初始源池：2 个源 ['lzi', 'wujin']
+
+[场景 0] 造数：导入 8 个 mock 源
+  [PASS] 0.1 8 个源全部导入 [{"key": "p4a", "name": "P4快速源A", "api": "http://127.0.0.1:19409/mock/a/api.php/provide/vod/", "action": "imported", "reason": "新增源"}, {"key": "p4b", "name": "P4快速源B", "api": "http://127.0.0.1:19410/mock/b/api.php/provide/vod/", "action": "imported", "reason": "新增源"}, {"key": "p4delay", "name": "P4慢
+  [PASS] 0.2 源池已含 p4a/p4slow/p4dead siteCount=10
+
+[场景 1] 探活（真实请求本地 mock）：区分可用 / 失效
+  [PASS] 1.1 p4a 探活正常且搜索可用 {'key': 'p4a', 'name': 'P4快速源A', 'api': 'http://127.0.0.1:19409/mock/a/api.php/provide/vod/', 'validTypes': '1,2', 'typesCheckedAt': 1789473320813, 'latency': 103, 'ok': True, 'classCount': 2, 'total': 5, 'message': '可用：分类 2 个，资源 5 条', 'validTypeCount': 2, 'searchable': 1}
+  [PASS] 1.2 p4slow / p4flaky 探活正常 
+  [PASS] 1.3 p4dead 探活失败（失效源） {'key': 'p4dead', 'name': 'P4失效源', 'api': 'http://127.0.0.1:18999/dead/api.php/provide/vod/', 'validTypes': '', 'typesCheckedAt': 0, 'latency': 1, 'ok': False, 'message': '接口无响应或返回非 JSON', 'classCount': 0, 'total': 0}
+
+[场景 2] 聚合搜索基础：并发扇出 / 统一字段 / 各源命中数与耗时
+  [PASS] 2.1 整体返回 ok 且关键词回显 
+  [PASS] 2.2 参与源 7（失效源默认跳过）/ 总计 8 {"total": 8, "queried": 7, "ok": 6, "failed": 1, "skipped": 1}
+  [PASS] 2.3 stats 覆盖全部 8 个源且含命中数与耗时 
+  [PASS] 2.4 p4a 命中 4 条（源内重复一并回收） {'key': 'p4a', 'siteKey': 'cms_p4a', 'name': 'P4快速源A', 'status': 'ok', 'count': 4, 'elapsedMs': 7, 'attempts': 1, 'weight': 1.0, 'error': ''}
+  [PASS] 2.5 p4b 命中 3 条 {'key': 'p4b', 'siteKey': 'cms_p4b', 'name': 'P4快速源B', 'status': 'ok', 'count': 3, 'elapsedMs': 7, 'attempts': 1, 'weight': 1.0, 'error': ''}
+  [PASS] 2.6 统一字段齐全（name/pic/remarks/type/id/sourceKey/siteKey） {"name": "庆余年", "pic": "", "remarks": "HD", "type": "剧集", "year": "2019", "area": "内地", "id": "a-1", "sourceKey": "p4a", "sourceName": "P4快速源A", "siteKey": "cms_p4a", "sources": [{"key": "p4a", "name": "P4快速源A", "siteKey
+
+[场景 3] 合并去重（源内同名合并 + 跨源同名合并 / 多源标记）
+  [PASS] 3.1 原始 12 条 → 合并后 9 条 raw=12 merged=9
+  [PASS] 3.2 跨源同名的「庆余年」合并为 1 条 [{"key": "p4a", "name": "P4快速源A", "siteKey": "cms_p4a", "id": "a-1", "remarks": "HD"}, {"key": "p4b", "name": "P4快速源B", "siteKey": "cms_p4b", "id": "b-3", "remarks": "1080P"}]
+  [PASS] 3.3 合并项带 multiSource 标记与来源清单 
+  [PASS] 3.4 源内同名（含空白差异）不再重复计入来源数 
+  [PASS] 3.5 来源清单含站点标记与源内 id [{"key": "p4a", "name": "P4快速源A", "siteKey": "cms_p4a", "id": "a-1", "remarks": "HD"}, {"key": "p4b", "name": "P4快速源B", "siteKey": "cms_p4b", "id": "b-3", "remarks": "1080P"}]
+
+[场景 4] 排序：相关度 × 源可用性 + 多源加成
+  [PASS] 4.1 结果按 score 降序排列 [3.3002, 2.1304, 0.7434, 0.3999, 0.3999, 0.3999, 0.3999, 0.3999, 0.3999]
+  [PASS] 4.2 rank 连续且从 1 开始 
+  [PASS] 4.3 完全同名的多源结果排第一 
+  [PASS] 4.4 前缀命中次之 庆余年 第二季
+
+[场景 5] 单源超时隔离（慢源 6s vs 单源超时 1.2s）
+  [PASS] 5.1 慢源被标记 timeout {'key': 'p4slow', 'siteKey': 'cms_p4slow', 'name': 'P4超时源', 'status': 'timeout', 'count': 0, 'elapsedMs': 1200, 'attempts': 1, 'weight': 1.0, 'error': '搜索超时（等待超时）'}
+  [PASS] 5.2 慢源 0 命中且不影响其余源（其余 6 源正常应答） {"total": 8, "queried": 7, "ok": 6, "failed": 1, "skipped": 1}
+  [PASS] 5.3 整体耗时远小于慢源耗时（并发 + 超时隔离） wall=2.62s elapsedMs=2618
+  [PASS] 5.4 超时源产生隔离告警 ["源 P4失效源(p4dead) 已降权跳过：探活失败（接口无响应或返回非 JSON）（如需强制参与可带 includeDegraded=true）", "源 P4超时源 搜索超时（>1200ms），已隔离，不影响其余源结果"]
+
+[场景 6] 单源异常隔离（坏源返回非 JSON）
+  [PASS] 6.1 坏源被隔离为 empty（0 命中） {'key': 'p4broken', 'siteKey': 'cms_p4broken', 'name': 'P4坏源', 'status': 'empty', 'count': 0, 'elapsedMs': 15, 'attempts': 2, 'weight': 1.0, 'error': ''}
+  [PASS] 6.2 整体仍为 ok 且其余源结果完整 
+
+[场景 7] 失效源降权 / 强制参与（includeDegraded）
+  [PASS] 7.1 失效源默认被降权跳过 {'key': 'p4dead', 'siteKey': 'cms_p4dead', 'name': 'P4失效源', 'status': 'skipped_invalid', 'count': 0, 'elapsedMs': 0, 'weight': 0.2, 'error': '探活失败（接口无响应或返回非 JSON）'}
+  [PASS] 7.2 降权跳过写入告警区 ["源 P4失效源(p4dead) 已降权跳过：探活失败（接口无响应或返回非 JSON）（如需强制参与可带 includeDegraded=true）", "源 P4超时源 搜索超时（>1200ms），已隔离，不影响其余源结果"]
+  [PASS] 7.3 includeDegraded=true 时失效源参与但 0 命中 {'key': 'p4dead', 'siteKey': 'cms_p4dead', 'name': 'P4失效源', 'status': 'empty', 'count': 0, 'elapsedMs': 3, 'attempts': 2, 'weight': 0.2, 'error': ''}
+  [PASS] 7.4 强制参与后整体结果不受影响 
+
+[场景 8] 并发聚合（两个 900ms 源 + 快速源，maxConcurrent 与整体耗时）
+  [PASS] 8.1 mock 侧观测到并发（maxConcurrent >= 2） maxConcurrent=6
+  [PASS] 8.2 两个 900ms 源并发执行（整体 < 1.8s 的串行下界） wall=0.91s elapsedMs=912
+  [PASS] 8.3 两个慢速源各自耗时约 900ms（并行而非串行） p4delay=910ms p4delay2=910ms
+  [PASS] 8.4 同名跨源「共享片」合并为多源结果 {"name": "共享片", "pic": "", "remarks": "HD", "type": "电影", "year": "", "area": "", "id": "a-3", "sourceKey": "p4a", "sourceName": "P4快速源A", "siteKey": "cms_p4a", "sources": [{"key": "p4a", "name": "P4快
+
+[场景 9] 失败重试（抖动源首次返回非 JSON）
+  [PASS] 9.1 重试后拿到结果（status=ok） {'key': 'p4flaky', 'siteKey': 'cms_p4flaky', 'name': 'P4抖动源', 'status': 'ok', 'count': 1, 'elapsedMs': 2, 'attempts': 2, 'weight': 1.0, 'error': ''}
+  [PASS] 9.2 记录尝试次数 attempts=2 {'key': 'p4flaky', 'siteKey': 'cms_p4flaky', 'name': 'P4抖动源', 'status': 'ok', 'count': 1, 'elapsedMs': 2, 'attempts': 2, 'weight': 1.0, 'error': ''}
+  [PASS] 9.3 mock 侧确凿收到 4 次请求（首次尝试 3 个 ac 全失败 + 重试 1 次成功） searchHits=4
+  [PASS] 9.4 retries=0 时不再重试（attempts=1 / 0 命中） {'key': 'p4flaky', 'siteKey': 'cms_p4flaky', 'name': 'P4抖动源', 'status': 'empty', 'count': 0, 'elapsedMs': 1, 'attempts': 1, 'weight': 1.0, 'error': ''}
+
+[场景 10] 结果缓存（TTL 内复用 / refresh 强制回源 / 清缓存接口）
+  [PASS] 10.1 首次回源并写缓存 searchHits=1
+  [PASS] 10.2 第二次命中缓存（未再回源） searchHits=1
+  [PASS] 10.3 缓存命中提示写入告警区并显著更快 wall=0.001s
+  [PASS] 10.4 refresh=true 强制回源 searchHits=2
+  [PASS] 10.5 /api/search/cache 返回缓存条目与默认运行参数 {"ok": true, "cacheSize": 1, "defaults": {"limit": 30, "timeoutMs": 2500, "retries": 1, "concurrency": 6, "cacheTtlMs": 20000, "maxSources": 24}}
+  [PASS] 10.6 清空缓存生效 {"ok": true, "cacheSize": 0, "defaults": {"limit": 30, "timeoutMs": 2500, "retries": 1, "concurrency": 6, "cacheTtlMs": 20000, "maxSources": 24}}
+
+[场景 11] 参数：limit / sources 白名单 / 缺关键词
+  [PASS] 11.1 limit=2 生效（返回 2 条且 rank 1-2） count=2
+  [PASS] 11.2 sources 白名单只查指定源 
+  [PASS] 11.3 缺关键词返回明确原因且不报错 {"ok": true, "keyword": "", "includeDegraded": false, "timestamp": 1789473337454, "reason": "缺少关键词参数 wd", "results": [], "stats": [], "warnings": [], "elapsedMs
+
+[场景 12] 配置页搜索入口
+  [PASS] 12.1 配置页含聚合搜索卡片 
+  [PASS] 12.2 配置页含搜索接口与前端函数 
+  [PASS] 12.3 配置页含各源命中数与耗时展示 
+  [PASS] 12.4 配置页含运行治理参数入口 
+
+[场景 13] 还原源池并复核
+
+[场景 13 续] 还原后源池 key 集合与初始一致: True ['lzi', 'wujin']
+  [PASS] 13.1 还原一致
+
+== 汇总：通过 52 / 失败 0 ==

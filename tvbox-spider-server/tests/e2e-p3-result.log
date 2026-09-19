@@ -1,0 +1,61 @@
+== P3 源池治理端到端验证 ==
+已备份源池（2 个源）→ /Users/wangxue/Downloads/output/tvbox-spider-server/tests/sources.json.p3bak
+初始源池：2 个源 ['lzi', 'wujin']
+
+[场景 1] 批量导入预览（dryRun，含重复项 + 非法项）
+  [PASS] 1.1 预览识别新增 2（p3a/p3b） [{"key": "p3a", "name": "P3源A", "api": "http://127.0.0.1:18901/mock/cms/", "action": "imported", "reason": "新增源"}, {"key": "p3a2", "name": "P3源A副本", "api": "http://127.0.0.1:18901/mock/cms/", "action": "skipped", "reason": "本批内重复（同 key / 同接口 / 同名），保留先出现的条目", "dupOf": "p3a"}, {"key": "p3b", "name": "P3失效源B", "api": "http://127.0.0.1:18999/dead/api.php/provide/vod/", "action": "imported", "reason": "新增源"}, {"key": "p3c", "name": "P3非法源C", "api": "not-a-url/", "action": "invalid", "reason": "缺少合法 api 地址（需 http/https 开头）"}]
+  [PASS] 1.2 预览识别同接口重复 1（p3a2） 
+  [PASS] 1.3 预览识别非法条目 1（p3c） 
+  [PASS] 1.4 预览未落盘（池内数量不变） 
+
+[场景 2] 批量导入执行（strategy=skip）
+  [PASS] 2.1 新增 2 / 跳过 1 / 非法 1 [{"key": "p3a", "name": "P3源A", "api": "http://127.0.0.1:18901/mock/cms/", "action": "imported", "reason": "新增源"}, {"key": "p3a2", "name": "P3源A副本", "api": "http://127.0.0.1:18901/mock/cms/", "action": "skipped", "reason": "本批内重复（同 key / 同接口 / 同名），保留先出现的条目", "dupOf": "p3a"}, {"key": "p3b", "name": "P3失效源B", "api": "http://127.0.0.1:18999/dead/api.php/provide/vod/", "action": "imported", "reason": "新增源"}, {"key": "p3c", "name": "P3非法源C", "api": "not-a-url/", "action": "invalid", "reason": "缺少合法 api 地址（需 http/https 开头）"}]
+  [PASS] 2.2 池内已含 p3a 与 p3b 且无 p3a2/p3c 
+  [PASS] 2.3 站点同步注册（siteCount > 0） siteCount=4
+
+[场景 3] 重复导入同一批（去重生效）
+  [PASS] 3.1 第二次全部跳过（新增 0 / 跳过 3） [{"key": "p3a", "name": "P3源A", "api": "http://127.0.0.1:18901/mock/cms/", "action": "skipped", "reason": "已有源（同 key），按跳过策略保留原条目", "dupOf": "p3a"}, {"key": "p3a2", "name": "P3源A副本", "api": "http://127.0.0.1:18901/mock/cms/", "action": "skipped", "reason": "本批内重复（同 key / 同接口 / 同名），保留先出现的条目", "dupOf": "p3a"}, {"key": "p3b", "name": "P3失效源B", "api": "http://127.0.0.1:18999/dead/api.php/provide/vod/", "action": "skipped", "reason": "已有源（同 key），按跳过策略保留原条目", "dupOf": "p3b"}, {"key": "p3c", "name": "P3非法源C", "api": "not-a-url/", "action": "invalid", "reason": "缺少合法 api 地址（需 http/https 开头）"}]
+
+[场景 4] merge 策略（同名同 key 补空字段）
+  [PASS] 4.1 合并 1 条且补齐 group [{"key": "p3a", "name": "P3源A", "api": "http://127.0.0.1:18901/mock/cms/", "action": "merged", "reason": "已有源（同 key），已用新条目补齐空字段", "dupOf": "p3a"}]
+
+[场景 5] overwrite 策略（同接口不同 key，覆盖已有条目）
+  [PASS] 5.1 覆盖 1 条且沿用已有 key=p3a 
+  [PASS] 5.2 名称已更新 
+
+[场景 6] 单仓 dist 配置导入（sites 数组自动拆分）
+  [PASS] 6.1 单仓站点被拆分为源条目 
+
+[场景 7] 探活（真实请求本地 mock）
+  [PASS] 7.1 可用源 p3a 探活 ok {'key': 'p3a', 'name': 'P3源A覆盖版', 'api': 'http://127.0.0.1:18901/mock/cms/', 'validTypes': '', 'typesCheckedAt': 0, 'latency': 4, 'ok': True, 'classCount': 2, 'total': 2, 'message': '可用：分类 2 个，资源 2 条', 'validTypeCount': 0, 'searchable': 1}
+  [PASS] 7.2 可用源 p3d 探活 ok {'key': 'p3d', 'name': 'P3慢速源D', 'api': 'http://127.0.0.1:18901/mock/slow/', 'validTypes': '', 'typesCheckedAt': 0, 'latency': 503, 'ok': True, 'classCount': 2, 'total': 2, 'message': '可用：分类 2 个，资源 2 条', 'validTypeCount': 0, 'searchable': 1}
+  [PASS] 7.3 失效源 p3b 探活失败 {'key': 'p3b', 'name': 'P3失效源B', 'api': 'http://127.0.0.1:18999/dead/api.php/provide/vod/', 'validTypes': '', 'typesCheckedAt': 0, 'latency': 1, 'ok': False, 'message': '接口无响应或返回非 JSON', 'classCount': 0, 'total': 0}
+  [PASS] 7.4 慢速源延迟高于快速源 p3a=4ms p3d=503ms
+
+[场景 8] 可用性排序（?sort=health）
+  [PASS] 8.1 返回排序标识 按可用性排序：正常 → 未测 → 异常
+  [PASS] 8.2 健康分组单调不减（正常→未测→异常） [0, 0, 0, 0, 2]
+  [PASS] 8.3 异常源排在可用源之后 ['p3a', 'lzi', 'p3d', 'wujin', 'p3b']
+  [PASS] 8.4 同为正常源时延迟低者在前 ['p3a', 'lzi', 'p3d', 'wujin', 'p3b']
+
+[场景 9] 池内去重（先造重复，再预览 + 确认执行）
+  [PASS] 9.1 预览识别重复且未删除 [{"key": "p3dup2", "name": "P3重复源2", "api": "http://127.0.0.1:18901/mock/cms/?dup=1", "action": "removed", "reason": "与 p3dup1 同接口，保留先出现的条目", "dupOf": "p3dup1"}]
+  [PASS] 9.2 确认后删除重复条目 removed=1
+  [PASS] 9.3 保留先出现的 p3dup1（删除 p3dup2） 
+
+[场景 10] 清理失效源（预览 + 确认执行）
+  [PASS] 10.1 预览列出失效源 p3b 且未删除 [{"key": "p3b", "name": "P3失效源B", "api": "http://127.0.0.1:18999/dead/api.php/provide/vod/", "action": "removed", "reason": "探活失败：接口无响应或返回非 JSON"}]
+  [PASS] 10.2 确认后 p3b 已清理 removed=1
+  [PASS] 10.3 可用源未被误删（p3a/p3d 保留） 
+
+[场景 11] 配置页治理入口
+  [PASS] 11.1 配置页含治理卡片 
+  [PASS] 11.2 配置页含治理接口调用 
+  [PASS] 11.3 配置页含排序入口 
+
+[场景 12] 还原源池并复核
+
+[场景 12 续] 还原后源池 key 集合与初始一致: True
+  [PASS] 12.1 还原一致
+
+== 汇总：通过 30 / 失败 0 ==

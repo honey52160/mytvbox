@@ -1,0 +1,40 @@
+== 1. 脚本语法校验 ==
+
+--- 正确脚本 ---
+{"ok": true, "engine": "rhino", "results": [{"name": "before", "ok": true, "message": "语法正确", "length": 296}, {"name": "after", "ok": true, "message": "语法正确", "length": 168}]}
+
+--- 故意语法错误 ---
+{"ok": false, "engine": "rhino", "results": [{"name": "before", "ok": false, "message": "syntax error (rule-script-check#1)", "length": 9}, {"name": "after", "ok": true, "message": "语法正确", "length": 0}]}
+
+== 2. 保存场景 A（正确签名脚本）==
+源 key=rule_mock_sign  站点 key= cms_rule_mock_sign
+
+== 3. 探活场景 A（应正常）==
+
+--- test ---
+[{"key": "rule_mock_sign", "name": "Mock签名源", "type": "rule", "ok": true, "latency": 7, "validTypes": "", "classCount": 2, "searchable": 1, "message": "接口正常，解析到 2 个分类", "hasScript": true}, {"key": "rule_mock_badsign", "name": "Mock错误签名源", "type": "rule", "ok": false, "latency": 2, "validTypes": "", "classCount": 0, "searchable": 0, "message": "接口拒绝：脚本产出的参数/签名未通过校验（返回错误码），请核对 scripts 中的签名算法与盐值", "hasScript": true}]
+
+== 4. 取数场景 A ==
+
+--- do=home ---
+{"class": [{"type_id": "1", "type_name": "电影"}, {"type_id": "2", "type_name": "剧集"}], "filters": {}}
+
+--- do=category tid=1 pg=1 ---
+{"page": 1, "pagecount": 1, "limit": 20, "total": 2, "list": [{"vod_id": "1001", "vod_name": "签名校验测试片A", "vod_pic": "http://127.0.0.1:18899/p1.jpg", "vod_remarks": "HD"}, {"vod_id": "1002", "vod_name": "签名校验测试片B", "vod_pic": "http://127.0.0.1:18899/p2.jpg", "vod_remarks": "更新至2集"}]}
+
+--- do=search wd=签名 ---
+{"list": [{"vod_id": "2001", "vod_name": "搜索命中片", "vod_pic": "http://127.0.0.1:18899/s1.jpg", "vod_remarks": "全12集"}]}
+
+--- do=detail ids=1001 ---
+{"list": [{"vod_id": "1001", "vod_name": "签名校验测试片A", "vod_pic": "http://127.0.0.1:18899/p1.jpg", "vod_remarks": "HD"}]}
+
+== 5. 场景 B（错误盐值脚本，应被 mock 拒绝）==
+源 key=rule_mock_badsign  站点 key= cms_rule_mock_badsign
+
+--- test B（预期异常） ---
+[{"key": "rule_mock_sign", "name": "Mock签名源", "type": "rule", "ok": true, "latency": 5, "validTypes": "", "classCount": 2, "searchable": 1, "message": "接口正常，解析到 2 个分类", "hasScript": true}, {"key": "rule_mock_badsign", "name": "Mock错误签名源", "type": "rule", "ok": false, "latency": 4, "validTypes": "", "classCount": 0, "searchable": 0, "message": "接口拒绝：脚本产出的参数/签名未通过校验（返回错误码），请核对 scripts 中的签名算法与盐值", "hasScript": true}]
+
+--- 取数 B（预期空） ---
+{"class": [], "filters": {}}
+
+完成时间: 2026-09-14 18:43:16

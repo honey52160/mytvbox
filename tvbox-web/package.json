@@ -1,0 +1,13 @@
+{
+  "name": "tvbox-web",
+  "version": "1.0.0",
+  "description": "TVBox Web 客户端：浏览器端实现 TVBox 客户端功能，复用 tvbox-spider-server 采集宿主",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

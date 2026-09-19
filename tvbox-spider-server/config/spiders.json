@@ -1,0 +1,23 @@
+{
+  "port": 9978,
+  "bind": "0.0.0.0",
+  "_comment": "jar 字段支持三种写法：① 本地路径（相对本工程根目录或绝对路径）② http(s):// 直链 ③ 'URL;md5;校验值'。dex 格式 jar 会在启动/首次加载时自动转换为 JVM jar 并缓存到 plugins/。",
+  "sites": [
+    {
+      "key": "demo",
+      "name": "Demo 站点（JVM jar 自检）",
+      "api": "csp_Demo",
+      "type": 3,
+      "jar": "plugins/demo-spider.jar",
+      "ext": ""
+    },
+    {
+      "key": "smoke",
+      "name": "Dex Smoke 站点（dex→JVM 转换自检）",
+      "api": "csp_Smoke",
+      "type": 3,
+      "jar": "plugins/smoke-dex.jar",
+      "ext": ""
+    }
+  ]
+}

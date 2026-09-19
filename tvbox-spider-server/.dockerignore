@@ -1,0 +1,10 @@
+.git
+.DS_Store
+run/
+data/
+tests/
+tools/
+src/
+*.sh
+README.md
+.tvbox-spider-server/
